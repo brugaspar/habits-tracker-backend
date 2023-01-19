@@ -48,5 +48,6 @@ model DayHabit {
   habitId String @map("habit_id")
   habit   Habit  @relation(fields: [habitId], references: [id])
 
+  @@unique([dayId, habitId])
   @@map("day_habits")
 }

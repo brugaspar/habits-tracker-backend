@@ -37,6 +37,56 @@ router.post("/habits", async (request, response) => {
   return response.sendStatus(201);
 });
 
+router.patch("/habits/:id/toggle", async (request, response) => {
+  const toggleHabitParams = z.object({
+    id: z.string().uuid(),
+  });
+
+  const { id } = toggleHabitParams.parse(request.params);
+
+  const today = dayjs().startOf("day").toDate();
+
+  let day = await prisma.day.findUnique({
+    where: {
+      date: today,
+    },
+  });
+
+  if (!day) {
+    day = await prisma.day.create({
+      data: {
+        date: today,
+      },
+    });
+  }
+
+  const dayHabit = await prisma.dayHabit.findUnique({
+    where: {
+      dayId_habitId: {
+        dayId: day.id,
+        habitId: id,
+      },
+    },
+  });
+
+  if (dayHabit) {
+    await prisma.dayHabit.delete({
+      where: {
+        id: dayHabit.id,
+      },
+    });
+  } else {
+    await prisma.dayHabit.create({
+      data: {
+        dayId: day.id,
+        habitId: id,
+      },
+    });
+  }
+
+  return response.sendStatus(200);
+});
+
 router.get("/day", async (request, response) => {
   const getDayParams = z.object({
     date: z.coerce.date(),
@@ -75,4 +125,36 @@ router.get("/day", async (request, response) => {
     availableHabits,
     completedHabits,
   });
+});
+
+router.get("/summary", async (request, response) => {
+  const summary = await prisma.$queryRaw`
+    select
+      d.id,
+      d.date,
+      (
+        select
+          cast(count(*) as float)
+        from
+          day_habits dh
+        where
+          dh.day_id = d.id
+      ) completed,
+      (
+        select
+          cast(count(*) as float)
+        from
+          habit_week_days hwd
+        join
+          habits h on h.id = hwd.habit_id
+        where
+          hwd.week_day = (select extract(isodow from date (d.date)))
+          and
+          h.created_at <= d.date
+      ) amount
+    from
+      days d
+  `;
+
+  return response.status(200).json(summary);
 });

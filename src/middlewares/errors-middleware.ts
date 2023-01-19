@@ -15,5 +15,7 @@ export function errors(error: any, request: Request, response: Response, next: N
     });
   }
 
+  console.log(error);
+
   return response.sendStatus(500);
 }
